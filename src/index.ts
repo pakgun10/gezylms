@@ -276,18 +276,45 @@ const app = new Elysia()
       <div class="page-heading"><p class="eyebrow">Admin</p><h2>Kelola GezyLMS</h2><p>Panel sederhana untuk MVP. Gunakan status <code>published</code> agar konten tampil ke siswa.</p></div>
       <div id="admin-error"></div>
       <section class="admin-grid">
-        <form id="category-form" class="card"><h3>Kategori</h3><input name="name" placeholder="Nama" required><input name="slug" placeholder="slug" required><textarea name="description" placeholder="Deskripsi"></textarea><button class="btn btn-primary">Tambah</button></form>
+        <form id="category-form" class="card"><h3 id="category-form-title">Kategori</h3><input type="hidden" name="id"><input name="name" placeholder="Nama" required><input name="slug" placeholder="slug" required><textarea name="description" placeholder="Deskripsi"></textarea><input name="sort_order" type="number" placeholder="Urutan" value="0"><div class="action-row compact"><button id="category-submit" class="btn btn-primary">Tambah</button><button id="category-cancel" class="btn btn-secondary" type="button" style="display:none">Batal edit</button></div></form>
         <form id="material-form" class="card"><h3 id="material-form-title">Materi</h3><input type="hidden" name="id"><select name="category_id" required></select><input name="title" placeholder="Judul" required><input name="slug" placeholder="slug" required><textarea name="summary" placeholder="Ringkasan"></textarea><input name="sort_order" type="number" placeholder="Urutan" value="0"><select name="status"><option>draft</option><option>published</option></select><div class="action-row compact"><button id="material-submit" class="btn btn-primary">Tambah</button><button id="material-cancel" class="btn btn-secondary" type="button" style="display:none">Batal edit</button></div></form>
-        <form id="section-form" class="card wide"><h3>Submateri</h3><select name="material_id" required></select><input name="title" placeholder="Judul" required><input name="slug" placeholder="slug" required><select name="status"><option>draft</option><option>published</option></select><textarea name="content_markdown" class="code-input" placeholder="Markdown + LaTeX"></textarea><button class="btn btn-primary">Tambah</button></form>
-        <form id="quiz-form" class="card"><h3>Quiz</h3><select name="material_id"></select><select name="section_id"></select><input name="title" placeholder="Judul quiz" required><textarea name="description" placeholder="Deskripsi"></textarea><input name="answers_released_at" placeholder="Release kunci: 2026-07-22T08:00:00"><select name="status"><option>draft</option><option>published</option></select><button class="btn btn-primary">Tambah</button></form>
-        <form id="question-form" class="card wide"><h3>Soal</h3><select name="quiz_id" required></select><select name="question_type"><option value="multiple_choice">multiple_choice</option><option value="true_false">true_false</option><option value="multi_response">multi_response</option></select><textarea name="question_text" placeholder="Teks soal + LaTeX" required></textarea><textarea name="options" placeholder='["Opsi A","Opsi B"]' required></textarea><input name="correct_answer" placeholder="[0]" required><input name="points" type="number" value="1"><textarea name="explanation" placeholder="Pembahasan"></textarea><button class="btn btn-primary">Tambah</button></form>
+        <form id="section-form" class="card wide"><h3 id="section-form-title">Submateri</h3><input type="hidden" name="id"><select name="material_id" required></select><input name="title" placeholder="Judul" required><input name="slug" placeholder="slug" required><input name="sort_order" type="number" placeholder="Urutan" value="0"><select name="status"><option>draft</option><option>published</option></select><textarea name="content_markdown" class="code-input" placeholder="Markdown + LaTeX"></textarea><div class="action-row compact"><button id="section-submit" class="btn btn-primary">Tambah</button><button id="section-cancel" class="btn btn-secondary" type="button" style="display:none">Batal edit</button></div></form>
+        <form id="quiz-form" class="card"><h3 id="quiz-form-title">Quiz</h3><input type="hidden" name="id"><select name="material_id"></select><select name="section_id"></select><input name="title" placeholder="Judul quiz" required><textarea name="description" placeholder="Deskripsi"></textarea><input name="deadline_at" placeholder="Deadline: 2026-07-22T08:00:00"><input name="answers_released_at" placeholder="Release kunci: 2026-07-22T08:00:00"><select name="status"><option>draft</option><option>published</option></select><div class="action-row compact"><button id="quiz-submit" class="btn btn-primary">Tambah</button><button id="quiz-cancel" class="btn btn-secondary" type="button" style="display:none">Batal edit</button></div></form>
+        <form id="question-form" class="card wide"><h3 id="question-form-title">Soal</h3><input type="hidden" name="id"><select name="quiz_id" required></select><select name="question_type"><option value="multiple_choice">multiple_choice</option><option value="true_false">true_false</option><option value="multi_response">multi_response</option></select><textarea name="question_text" placeholder="Teks soal + LaTeX" required></textarea><textarea name="options" placeholder='["Opsi A","Opsi B"]' required></textarea><input name="correct_answer" placeholder="[0]" required><input name="points" type="number" value="1"><input name="sort_order" type="number" placeholder="Urutan" value="0"><textarea name="explanation" placeholder="Pembahasan"></textarea><div class="action-row compact"><button id="question-submit" class="btn btn-primary">Tambah</button><button id="question-cancel" class="btn btn-secondary" type="button" style="display:none">Batal edit</button></div></form>
       </section>
       <section class="card"><h3>Data Saat Ini</h3><div id="admin-data"></div></section>
     </main>
     <script>
-      let adminState = { categories: [], materials: [], quizzes: [] };
+      let adminState = { categories: [], materials: [], quizzes: [], sections: [], questions: [], selectedMaterialId: null, selectedQuizId: null };
       const fill = (select, rows, label) => { select.innerHTML = '<option value="">- pilih -</option>' + rows.map(r => '<option value="' + r.id + '">' + GezyLMS.escapeHtml(label(r)) + '</option>').join(''); };
+      const categoryPayload = d => ({ name: d.name, slug: d.slug, description: d.description || '', sort_order: Number(d.sort_order || 0) });
       const materialPayload = d => ({ category_id: Number(d.category_id), title: d.title, slug: d.slug, summary: d.summary, status: d.status, sort_order: Number(d.sort_order || 0) });
+      const sectionPayload = d => ({ material_id: Number(d.material_id), title: d.title, slug: d.slug, content_markdown: d.content_markdown, status: d.status, sort_order: Number(d.sort_order || 0) });
+      const quizPayload = d => ({ material_id: d.material_id ? Number(d.material_id) : undefined, section_id: d.section_id ? Number(d.section_id) : undefined, title: d.title, description: d.description || '', deadline_at: d.deadline_at || undefined, answers_released_at: d.answers_released_at || undefined, status: d.status });
+      const questionPayload = d => ({ quiz_id: Number(d.quiz_id), question_type: d.question_type, question_text: d.question_text, options: JSON.parse(d.options), correct_answer: JSON.parse(d.correct_answer), points: Number(d.points || 1), sort_order: Number(d.sort_order || 0), explanation: d.explanation || '' });
+      const labelById = (rows, id, fallback = '-') => {
+        const row = rows.find(r => r.id === id);
+        return row?.title || row?.name || fallback;
+      };
+      const loadQuizSections = async (materialId, selectedSectionId = '') => {
+        const select = document.querySelector('#quiz-form [name=section_id]');
+        if (!materialId) {
+          select.innerHTML = '<option value="">- opsional -</option>';
+          return;
+        }
+        const rows = await GezyLMS.api('/api/admin/materials/' + materialId + '/sections');
+        select.innerHTML = '<option value="">- opsional -</option>' + rows.map(r => '<option value="' + r.id + '">' + GezyLMS.escapeHtml(r.title) + '</option>').join('');
+        select.value = selectedSectionId || '';
+      };
+      const resetCategoryForm = () => {
+        const form = document.getElementById('category-form');
+        form.reset();
+        form.elements.id.value = '';
+        form.elements.sort_order.value = '0';
+        document.getElementById('category-form-title').textContent = 'Kategori';
+        document.getElementById('category-submit').textContent = 'Tambah';
+        document.getElementById('category-cancel').style.display = 'none';
+      };
       const resetMaterialForm = () => {
         const form = document.getElementById('material-form');
         form.reset();
@@ -297,7 +324,75 @@ const app = new Elysia()
         document.getElementById('material-submit').textContent = 'Tambah';
         document.getElementById('material-cancel').style.display = 'none';
       };
-      const editMaterial = id => {
+      const resetSectionForm = (keepMaterial = true) => {
+        const form = document.getElementById('section-form');
+        const materialId = keepMaterial ? form.elements.material_id.value : '';
+        form.reset();
+        form.elements.id.value = '';
+        form.elements.sort_order.value = '0';
+        if (keepMaterial) form.elements.material_id.value = materialId;
+        document.getElementById('section-form-title').textContent = 'Submateri';
+        document.getElementById('section-submit').textContent = 'Tambah';
+        document.getElementById('section-cancel').style.display = 'none';
+      };
+      const resetQuizForm = () => {
+        const form = document.getElementById('quiz-form');
+        form.reset();
+        form.elements.id.value = '';
+        document.querySelector('#quiz-form [name=section_id]').innerHTML = '<option value="">- opsional -</option>';
+        document.getElementById('quiz-form-title').textContent = 'Quiz';
+        document.getElementById('quiz-submit').textContent = 'Tambah';
+        document.getElementById('quiz-cancel').style.display = 'none';
+      };
+      const resetQuestionForm = (keepQuiz = true) => {
+        const form = document.getElementById('question-form');
+        const quizId = keepQuiz ? form.elements.quiz_id.value : '';
+        form.reset();
+        form.elements.id.value = '';
+        form.elements.points.value = '1';
+        form.elements.sort_order.value = '0';
+        if (keepQuiz) form.elements.quiz_id.value = quizId;
+        document.getElementById('question-form-title').textContent = 'Soal';
+        document.getElementById('question-submit').textContent = 'Tambah';
+        document.getElementById('question-cancel').style.display = 'none';
+      };
+      const loadSections = async materialId => {
+        adminState.selectedMaterialId = materialId || null;
+        adminState.sections = materialId ? await GezyLMS.api('/api/admin/materials/' + materialId + '/sections') : [];
+        renderAdminData();
+      };
+      const loadQuestions = async quizId => {
+        adminState.selectedQuizId = quizId || null;
+        adminState.questions = quizId ? await GezyLMS.api('/api/admin/quizzes/' + quizId + '/questions') : [];
+        renderAdminData();
+      };
+      const editCategory = id => {
+        const category = adminState.categories.find(c => c.id === id);
+        if (!category) return;
+        const form = document.getElementById('category-form');
+        form.elements.id.value = category.id;
+        form.elements.name.value = category.name || '';
+        form.elements.slug.value = category.slug || '';
+        form.elements.description.value = category.description || '';
+        form.elements.sort_order.value = category.sort_order || 0;
+        document.getElementById('category-form-title').textContent = 'Edit Kategori';
+        document.getElementById('category-submit').textContent = 'Simpan';
+        document.getElementById('category-cancel').style.display = 'inline-block';
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      const deleteCategory = async id => {
+        const category = adminState.categories.find(c => c.id === id);
+        if (!category) return;
+        if (!confirm('Hapus kategori "' + category.name + '"? Materi terkait akan menjadi tanpa kategori.')) return;
+        try {
+          await GezyLMS.api('/api/admin/categories/' + id, { method: 'DELETE' });
+          resetCategoryForm();
+          await loadAdmin();
+        } catch (err) {
+          GezyLMS.showError('#admin-error', err);
+        }
+      };
+      const editMaterial = async id => {
         const material = adminState.materials.find(m => m.id === id);
         if (!material) return;
         const form = document.getElementById('material-form');
@@ -311,7 +406,39 @@ const app = new Elysia()
         document.getElementById('material-form-title').textContent = 'Edit Materi';
         document.getElementById('material-submit').textContent = 'Simpan';
         document.getElementById('material-cancel').style.display = 'inline-block';
+        document.querySelector('#section-form [name=material_id]').value = material.id;
+        resetSectionForm(true);
+        await loadSections(material.id);
+        if (adminState.sections.length === 1) editSection(adminState.sections[0].id);
         form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      const editSection = id => {
+        const section = adminState.sections.find(s => s.id === id);
+        if (!section) return;
+        const form = document.getElementById('section-form');
+        form.elements.id.value = section.id;
+        form.elements.material_id.value = section.material_id || adminState.selectedMaterialId || '';
+        form.elements.title.value = section.title || '';
+        form.elements.slug.value = section.slug || '';
+        form.elements.sort_order.value = section.sort_order || 0;
+        form.elements.status.value = section.status || 'draft';
+        form.elements.content_markdown.value = section.content_markdown || '';
+        document.getElementById('section-form-title').textContent = 'Edit Submateri';
+        document.getElementById('section-submit').textContent = 'Simpan';
+        document.getElementById('section-cancel').style.display = 'inline-block';
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      const deleteSection = async id => {
+        const section = adminState.sections.find(s => s.id === id);
+        if (!section) return;
+        if (!confirm('Hapus submateri "' + section.title + '"?')) return;
+        try {
+          await GezyLMS.api('/api/admin/sections/' + id, { method: 'DELETE' });
+          resetSectionForm(true);
+          await loadSections(adminState.selectedMaterialId);
+        } catch (err) {
+          GezyLMS.showError('#admin-error', err);
+        }
       };
       const deleteMaterial = async id => {
         const material = adminState.materials.find(m => m.id === id);
@@ -324,6 +451,101 @@ const app = new Elysia()
           GezyLMS.showError('#admin-error', err);
         }
       };
+      const editQuiz = async id => {
+        const quiz = adminState.quizzes.find(q => q.id === id);
+        if (!quiz) return;
+        const form = document.getElementById('quiz-form');
+        form.elements.id.value = quiz.id;
+        form.elements.material_id.value = quiz.material_id || '';
+        await loadQuizSections(quiz.material_id || '', quiz.section_id || '');
+        form.elements.title.value = quiz.title || '';
+        form.elements.description.value = quiz.description || '';
+        form.elements.deadline_at.value = quiz.deadline_at || '';
+        form.elements.answers_released_at.value = quiz.answers_released_at || '';
+        form.elements.status.value = quiz.status || 'draft';
+        document.getElementById('quiz-form-title').textContent = 'Edit Quiz';
+        document.getElementById('quiz-submit').textContent = 'Simpan';
+        document.getElementById('quiz-cancel').style.display = 'inline-block';
+        document.querySelector('#question-form [name=quiz_id]').value = quiz.id;
+        resetQuestionForm(true);
+        await loadQuestions(quiz.id);
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      const deleteQuiz = async id => {
+        const quiz = adminState.quizzes.find(q => q.id === id);
+        if (!quiz) return;
+        if (!confirm('Hapus quiz "' + quiz.title + '"? Semua soal dan attempt terkait akan terhapus.')) return;
+        try {
+          await GezyLMS.api('/api/admin/quizzes/' + id, { method: 'DELETE' });
+          resetQuizForm();
+          resetQuestionForm(false);
+          adminState.selectedQuizId = null;
+          adminState.questions = [];
+          await loadAdmin();
+        } catch (err) {
+          GezyLMS.showError('#admin-error', err);
+        }
+      };
+      const editQuestion = id => {
+        const question = adminState.questions.find(q => q.id === id);
+        if (!question) return;
+        const form = document.getElementById('question-form');
+        form.elements.id.value = question.id;
+        form.elements.quiz_id.value = question.quiz_id || adminState.selectedQuizId || '';
+        form.elements.question_type.value = question.question_type || 'multiple_choice';
+        form.elements.question_text.value = question.question_text || '';
+        form.elements.options.value = JSON.stringify(question.options || []);
+        form.elements.correct_answer.value = JSON.stringify(question.correct_answer || []);
+        form.elements.points.value = question.points || 1;
+        form.elements.sort_order.value = question.sort_order || 0;
+        form.elements.explanation.value = question.explanation || '';
+        document.getElementById('question-form-title').textContent = 'Edit Soal';
+        document.getElementById('question-submit').textContent = 'Simpan';
+        document.getElementById('question-cancel').style.display = 'inline-block';
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      const deleteQuestion = async id => {
+        const question = adminState.questions.find(q => q.id === id);
+        if (!question) return;
+        if (!confirm('Hapus soal ini?')) return;
+        try {
+          await GezyLMS.api('/api/admin/questions/' + id, { method: 'DELETE' });
+          resetQuestionForm(true);
+          await loadQuestions(adminState.selectedQuizId);
+        } catch (err) {
+          GezyLMS.showError('#admin-error', err);
+        }
+      };
+      const renderAdminData = () => {
+        const selectedMaterial = adminState.materials.find(m => m.id === adminState.selectedMaterialId);
+        const selectedQuiz = adminState.quizzes.find(q => q.id === adminState.selectedQuizId);
+        document.getElementById('admin-data').innerHTML =
+          '<p><strong>Kategori:</strong> ' + adminState.categories.length + '</p><p><strong>Materi:</strong> ' + adminState.materials.length + '</p><p><strong>Quiz:</strong> ' + adminState.quizzes.length + '</p>' +
+          '<h4 class="section-title">Kategori</h4>' +
+          (adminState.categories.length ? adminState.categories.map(c => '<div class="mini-row admin-row"><div><strong>' + GezyLMS.escapeHtml(c.name) + '</strong><div class="muted">' + GezyLMS.escapeHtml(c.slug) + ' / urutan ' + GezyLMS.escapeHtml(c.sort_order ?? 0) + '</div></div><div class="row-actions"><button class="btn btn-secondary btn-small" type="button" data-edit-category="' + c.id + '">Edit</button><button class="btn btn-danger btn-small" type="button" data-delete-category="' + c.id + '">Hapus</button></div></div>').join('') : '<div class="notice">Belum ada kategori.</div>') +
+          '<h4 class="section-title">Materi</h4>' +
+          (adminState.materials.length ? adminState.materials.map(m => '<div class="mini-row admin-row"><div><strong>' + GezyLMS.escapeHtml(m.title) + '</strong><div class="muted">' + GezyLMS.escapeHtml(m.category_name || 'Tanpa kategori') + ' / ' + GezyLMS.escapeHtml(m.slug) + '</div></div><div class="row-actions"><span class="badge">' + GezyLMS.escapeHtml(m.status) + '</span><button class="btn btn-secondary btn-small" type="button" data-edit-material="' + m.id + '">Edit</button><button class="btn btn-danger btn-small" type="button" data-delete-material="' + m.id + '">Hapus</button></div></div>').join('') : '<div class="notice">Belum ada materi.</div>') +
+          '<h4 class="section-title">Submateri' + (selectedMaterial ? ' - ' + GezyLMS.escapeHtml(selectedMaterial.title) : '') + '</h4>' +
+          (selectedMaterial
+            ? (adminState.sections.length ? adminState.sections.map(s => '<div class="mini-row admin-row"><div><strong>' + GezyLMS.escapeHtml(s.title) + '</strong><div class="muted">' + GezyLMS.escapeHtml(s.slug) + ' / urutan ' + GezyLMS.escapeHtml(s.sort_order ?? 0) + '</div></div><div class="row-actions"><span class="badge">' + GezyLMS.escapeHtml(s.status) + '</span><button class="btn btn-secondary btn-small" type="button" data-edit-section="' + s.id + '">Edit</button><button class="btn btn-danger btn-small" type="button" data-delete-section="' + s.id + '">Hapus</button></div></div>').join('') : '<div class="notice">Materi ini belum punya submateri.</div>')
+            : '<div class="notice">Klik Edit pada salah satu materi untuk melihat dan mengedit submaterinya.</div>') +
+          '<h4 class="section-title">Quiz</h4>' +
+          (adminState.quizzes.length ? adminState.quizzes.map(q => '<div class="mini-row admin-row"><div><strong>' + GezyLMS.escapeHtml(q.title) + '</strong><div class="muted">' + GezyLMS.escapeHtml(labelById(adminState.materials, q.material_id, 'Tanpa materi')) + ' / ' + GezyLMS.escapeHtml(labelById(adminState.sections, q.section_id, 'Tanpa submateri')) + '</div></div><div class="row-actions"><span class="badge">' + GezyLMS.escapeHtml(q.status) + '</span><button class="btn btn-secondary btn-small" type="button" data-edit-quiz="' + q.id + '">Edit</button><button class="btn btn-danger btn-small" type="button" data-delete-quiz="' + q.id + '">Hapus</button></div></div>').join('') : '<div class="notice">Belum ada quiz.</div>') +
+          '<h4 class="section-title">Soal' + (selectedQuiz ? ' - ' + GezyLMS.escapeHtml(selectedQuiz.title) : '') + '</h4>' +
+          (selectedQuiz
+            ? (adminState.questions.length ? adminState.questions.map((q, idx) => '<div class="mini-row admin-row"><div><strong>Soal ' + (idx + 1) + '</strong><div class="muted">' + GezyLMS.escapeHtml(q.question_type) + ' / poin ' + GezyLMS.escapeHtml(q.points ?? 1) + ' / urutan ' + GezyLMS.escapeHtml(q.sort_order ?? 0) + '</div><div class="muted">' + GezyLMS.escapeHtml((q.question_text || '').slice(0, 120)) + '</div></div><div class="row-actions"><button class="btn btn-secondary btn-small" type="button" data-edit-question="' + q.id + '">Edit</button><button class="btn btn-danger btn-small" type="button" data-delete-question="' + q.id + '">Hapus</button></div></div>').join('') : '<div class="notice">Quiz ini belum punya soal.</div>')
+            : '<div class="notice">Klik Edit pada salah satu quiz untuk melihat dan mengedit soalnya.</div>');
+        document.querySelectorAll('[data-edit-category]').forEach(btn => btn.addEventListener('click', () => editCategory(Number(btn.dataset.editCategory))));
+        document.querySelectorAll('[data-delete-category]').forEach(btn => btn.addEventListener('click', () => deleteCategory(Number(btn.dataset.deleteCategory))));
+        document.querySelectorAll('[data-edit-material]').forEach(btn => btn.addEventListener('click', () => editMaterial(Number(btn.dataset.editMaterial))));
+        document.querySelectorAll('[data-delete-material]').forEach(btn => btn.addEventListener('click', () => deleteMaterial(Number(btn.dataset.deleteMaterial))));
+        document.querySelectorAll('[data-edit-section]').forEach(btn => btn.addEventListener('click', () => editSection(Number(btn.dataset.editSection))));
+        document.querySelectorAll('[data-delete-section]').forEach(btn => btn.addEventListener('click', () => deleteSection(Number(btn.dataset.deleteSection))));
+        document.querySelectorAll('[data-edit-quiz]').forEach(btn => btn.addEventListener('click', () => editQuiz(Number(btn.dataset.editQuiz))));
+        document.querySelectorAll('[data-delete-quiz]').forEach(btn => btn.addEventListener('click', () => deleteQuiz(Number(btn.dataset.deleteQuiz))));
+        document.querySelectorAll('[data-edit-question]').forEach(btn => btn.addEventListener('click', () => editQuestion(Number(btn.dataset.editQuestion))));
+        document.querySelectorAll('[data-delete-question]').forEach(btn => btn.addEventListener('click', () => deleteQuestion(Number(btn.dataset.deleteQuestion))));
+      };
       async function loadAdmin() {
         try {
           const [categories, materials, quizzes] = await Promise.all([
@@ -331,18 +553,19 @@ const app = new Elysia()
             GezyLMS.api('/api/admin/materials'),
             GezyLMS.api('/api/admin/quizzes')
           ]);
-          adminState = { categories, materials, quizzes };
+          adminState = { ...adminState, categories, materials, quizzes };
           fill(document.querySelector('#material-form [name=category_id]'), categories, r => r.name);
           fill(document.querySelector('#section-form [name=material_id]'), materials, r => r.title);
           fill(document.querySelector('#quiz-form [name=material_id]'), materials, r => r.title);
           fill(document.querySelector('#question-form [name=quiz_id]'), quizzes, r => r.title);
           document.querySelector('#quiz-form [name=section_id]').innerHTML = '<option value="">- opsional -</option>';
-          document.getElementById('admin-data').innerHTML =
-            '<p><strong>Kategori:</strong> ' + categories.length + '</p><p><strong>Materi:</strong> ' + materials.length + '</p><p><strong>Quiz:</strong> ' + quizzes.length + '</p>' +
-            '<h4 class="section-title">Materi</h4>' +
-            (materials.length ? materials.map(m => '<div class="mini-row admin-row"><div><strong>' + GezyLMS.escapeHtml(m.title) + '</strong><div class="muted">' + GezyLMS.escapeHtml(m.category_name || 'Tanpa kategori') + ' / ' + GezyLMS.escapeHtml(m.slug) + '</div></div><div class="row-actions"><span class="badge">' + GezyLMS.escapeHtml(m.status) + '</span><button class="btn btn-secondary btn-small" type="button" data-edit-material="' + m.id + '">Edit</button><button class="btn btn-danger btn-small" type="button" data-delete-material="' + m.id + '">Hapus</button></div></div>').join('') : '<div class="notice">Belum ada materi.</div>');
-          document.querySelectorAll('[data-edit-material]').forEach(btn => btn.addEventListener('click', () => editMaterial(Number(btn.dataset.editMaterial))));
-          document.querySelectorAll('[data-delete-material]').forEach(btn => btn.addEventListener('click', () => deleteMaterial(Number(btn.dataset.deleteMaterial))));
+          if (adminState.selectedMaterialId) {
+            adminState.sections = await GezyLMS.api('/api/admin/materials/' + adminState.selectedMaterialId + '/sections');
+          }
+          if (adminState.selectedQuizId) {
+            adminState.questions = await GezyLMS.api('/api/admin/quizzes/' + adminState.selectedQuizId + '/questions');
+          }
+          renderAdminData();
         } catch (err) {
           GezyLMS.showError('#admin-error', err);
         }
@@ -360,7 +583,22 @@ const app = new Elysia()
           }
         });
       };
-      bindJsonForm('category-form', '/api/admin/categories', d => ({ name: d.name, slug: d.slug, description: d.description }));
+      document.getElementById('category-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target).entries());
+        const editing = !!data.id;
+        try {
+          await GezyLMS.api(editing ? '/api/admin/categories/' + data.id : '/api/admin/categories', {
+            method: editing ? 'PUT' : 'POST',
+            body: JSON.stringify(categoryPayload(data))
+          });
+          resetCategoryForm();
+          await loadAdmin();
+        } catch (err) {
+          GezyLMS.showError('#admin-error', err);
+        }
+      });
+      document.getElementById('category-cancel').addEventListener('click', resetCategoryForm);
       document.getElementById('material-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const data = Object.fromEntries(new FormData(e.target).entries());
@@ -377,9 +615,67 @@ const app = new Elysia()
         }
       });
       document.getElementById('material-cancel').addEventListener('click', resetMaterialForm);
-      bindJsonForm('section-form', '/api/admin/sections', d => ({ material_id: Number(d.material_id), title: d.title, slug: d.slug, content_markdown: d.content_markdown, status: d.status }));
-      bindJsonForm('quiz-form', '/api/admin/quizzes', d => ({ material_id: d.material_id ? Number(d.material_id) : undefined, section_id: d.section_id ? Number(d.section_id) : undefined, title: d.title, description: d.description, answers_released_at: d.answers_released_at || undefined, status: d.status }));
-      bindJsonForm('question-form', '/api/admin/questions', d => ({ quiz_id: Number(d.quiz_id), question_type: d.question_type, question_text: d.question_text, options: JSON.parse(d.options), correct_answer: JSON.parse(d.correct_answer), points: Number(d.points || 1), explanation: d.explanation }));
+      document.querySelector('#section-form [name=material_id]').addEventListener('change', async (e) => {
+        resetSectionForm(true);
+        await loadSections(Number(e.target.value) || null);
+      });
+      document.getElementById('section-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target).entries());
+        const editing = !!data.id;
+        try {
+          await GezyLMS.api(editing ? '/api/admin/sections/' + data.id : '/api/admin/sections', {
+            method: editing ? 'PUT' : 'POST',
+            body: JSON.stringify(sectionPayload(data))
+          });
+          adminState.selectedMaterialId = Number(data.material_id);
+          resetSectionForm(true);
+          await loadAdmin();
+        } catch (err) {
+          GezyLMS.showError('#admin-error', err);
+        }
+      });
+      document.getElementById('section-cancel').addEventListener('click', () => resetSectionForm(true));
+      document.querySelector('#quiz-form [name=material_id]').addEventListener('change', async (e) => {
+        await loadQuizSections(Number(e.target.value) || null);
+      });
+      document.getElementById('quiz-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target).entries());
+        const editing = !!data.id;
+        try {
+          await GezyLMS.api(editing ? '/api/admin/quizzes/' + data.id : '/api/admin/quizzes', {
+            method: editing ? 'PUT' : 'POST',
+            body: JSON.stringify(quizPayload(data))
+          });
+          resetQuizForm();
+          await loadAdmin();
+        } catch (err) {
+          GezyLMS.showError('#admin-error', err);
+        }
+      });
+      document.getElementById('quiz-cancel').addEventListener('click', resetQuizForm);
+      document.querySelector('#question-form [name=quiz_id]').addEventListener('change', async (e) => {
+        resetQuestionForm(true);
+        await loadQuestions(Number(e.target.value) || null);
+      });
+      document.getElementById('question-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target).entries());
+        const editing = !!data.id;
+        try {
+          await GezyLMS.api(editing ? '/api/admin/questions/' + data.id : '/api/admin/questions', {
+            method: editing ? 'PUT' : 'POST',
+            body: JSON.stringify(questionPayload(data))
+          });
+          adminState.selectedQuizId = Number(data.quiz_id);
+          resetQuestionForm(true);
+          await loadAdmin();
+        } catch (err) {
+          GezyLMS.showError('#admin-error', err);
+        }
+      });
+      document.getElementById('question-cancel').addEventListener('click', () => resetQuestionForm(true));
       loadAdmin();
     </script>`, !!cookie?.gezylms_token?.value))
 
