@@ -28,12 +28,12 @@ const page = (title: string, body: string, hasToken = false, math = false) => `<
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title} - GezyLMS</title>
   <link rel="stylesheet" href="/style.css">
+  <script src="/app.js"></script>
   ${math ? '<script>window.MathJax={tex:{inlineMath:[[\'\\\\(\',\'\\\\)\']],displayMath:[[\'\\\\[\',\'\\\\]\']]}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>' : ""}
 </head>
 <body>
   ${nav(hasToken)}
   ${body}
-  <script src="/app.js"></script>
 </body>
 </html>`;
 
@@ -277,7 +277,7 @@ const app = new Elysia()
       <div id="admin-error"></div>
       <section class="admin-grid">
         <form id="category-form" class="card"><h3>Kategori</h3><input name="name" placeholder="Nama" required><input name="slug" placeholder="slug" required><textarea name="description" placeholder="Deskripsi"></textarea><button class="btn btn-primary">Tambah</button></form>
-        <form id="material-form" class="card"><h3>Materi</h3><select name="category_id" required></select><input name="title" placeholder="Judul" required><input name="slug" placeholder="slug" required><textarea name="summary" placeholder="Ringkasan"></textarea><select name="status"><option>draft</option><option>published</option></select><button class="btn btn-primary">Tambah</button></form>
+        <form id="material-form" class="card"><h3 id="material-form-title">Materi</h3><input type="hidden" name="id"><select name="category_id" required></select><input name="title" placeholder="Judul" required><input name="slug" placeholder="slug" required><textarea name="summary" placeholder="Ringkasan"></textarea><input name="sort_order" type="number" placeholder="Urutan" value="0"><select name="status"><option>draft</option><option>published</option></select><div class="action-row compact"><button id="material-submit" class="btn btn-primary">Tambah</button><button id="material-cancel" class="btn btn-secondary" type="button" style="display:none">Batal edit</button></div></form>
         <form id="section-form" class="card wide"><h3>Submateri</h3><select name="material_id" required></select><input name="title" placeholder="Judul" required><input name="slug" placeholder="slug" required><select name="status"><option>draft</option><option>published</option></select><textarea name="content_markdown" class="code-input" placeholder="Markdown + LaTeX"></textarea><button class="btn btn-primary">Tambah</button></form>
         <form id="quiz-form" class="card"><h3>Quiz</h3><select name="material_id"></select><select name="section_id"></select><input name="title" placeholder="Judul quiz" required><textarea name="description" placeholder="Deskripsi"></textarea><input name="answers_released_at" placeholder="Release kunci: 2026-07-22T08:00:00"><select name="status"><option>draft</option><option>published</option></select><button class="btn btn-primary">Tambah</button></form>
         <form id="question-form" class="card wide"><h3>Soal</h3><select name="quiz_id" required></select><select name="question_type"><option value="multiple_choice">multiple_choice</option><option value="true_false">true_false</option><option value="multi_response">multi_response</option></select><textarea name="question_text" placeholder="Teks soal + LaTeX" required></textarea><textarea name="options" placeholder='["Opsi A","Opsi B"]' required></textarea><input name="correct_answer" placeholder="[0]" required><input name="points" type="number" value="1"><textarea name="explanation" placeholder="Pembahasan"></textarea><button class="btn btn-primary">Tambah</button></form>
@@ -285,7 +285,45 @@ const app = new Elysia()
       <section class="card"><h3>Data Saat Ini</h3><div id="admin-data"></div></section>
     </main>
     <script>
+      let adminState = { categories: [], materials: [], quizzes: [] };
       const fill = (select, rows, label) => { select.innerHTML = '<option value="">- pilih -</option>' + rows.map(r => '<option value="' + r.id + '">' + GezyLMS.escapeHtml(label(r)) + '</option>').join(''); };
+      const materialPayload = d => ({ category_id: Number(d.category_id), title: d.title, slug: d.slug, summary: d.summary, status: d.status, sort_order: Number(d.sort_order || 0) });
+      const resetMaterialForm = () => {
+        const form = document.getElementById('material-form');
+        form.reset();
+        form.elements.id.value = '';
+        form.elements.sort_order.value = '0';
+        document.getElementById('material-form-title').textContent = 'Materi';
+        document.getElementById('material-submit').textContent = 'Tambah';
+        document.getElementById('material-cancel').style.display = 'none';
+      };
+      const editMaterial = id => {
+        const material = adminState.materials.find(m => m.id === id);
+        if (!material) return;
+        const form = document.getElementById('material-form');
+        form.elements.id.value = material.id;
+        form.elements.category_id.value = material.category_id || '';
+        form.elements.title.value = material.title || '';
+        form.elements.slug.value = material.slug || '';
+        form.elements.summary.value = material.summary || '';
+        form.elements.sort_order.value = material.sort_order || 0;
+        form.elements.status.value = material.status || 'draft';
+        document.getElementById('material-form-title').textContent = 'Edit Materi';
+        document.getElementById('material-submit').textContent = 'Simpan';
+        document.getElementById('material-cancel').style.display = 'inline-block';
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      const deleteMaterial = async id => {
+        const material = adminState.materials.find(m => m.id === id);
+        if (!material) return;
+        if (!confirm('Hapus materi "' + material.title + '"? Submateri terkait juga akan terhapus.')) return;
+        try {
+          await GezyLMS.api('/api/admin/materials/' + id, { method: 'DELETE' });
+          await loadAdmin();
+        } catch (err) {
+          GezyLMS.showError('#admin-error', err);
+        }
+      };
       async function loadAdmin() {
         try {
           const [categories, materials, quizzes] = await Promise.all([
@@ -293,6 +331,7 @@ const app = new Elysia()
             GezyLMS.api('/api/admin/materials'),
             GezyLMS.api('/api/admin/quizzes')
           ]);
+          adminState = { categories, materials, quizzes };
           fill(document.querySelector('#material-form [name=category_id]'), categories, r => r.name);
           fill(document.querySelector('#section-form [name=material_id]'), materials, r => r.title);
           fill(document.querySelector('#quiz-form [name=material_id]'), materials, r => r.title);
@@ -300,7 +339,10 @@ const app = new Elysia()
           document.querySelector('#quiz-form [name=section_id]').innerHTML = '<option value="">- opsional -</option>';
           document.getElementById('admin-data').innerHTML =
             '<p><strong>Kategori:</strong> ' + categories.length + '</p><p><strong>Materi:</strong> ' + materials.length + '</p><p><strong>Quiz:</strong> ' + quizzes.length + '</p>' +
-            materials.map(m => '<div class="mini-row">' + GezyLMS.escapeHtml(m.title) + ' <span class="badge">' + GezyLMS.escapeHtml(m.status) + '</span></div>').join('');
+            '<h4 class="section-title">Materi</h4>' +
+            (materials.length ? materials.map(m => '<div class="mini-row admin-row"><div><strong>' + GezyLMS.escapeHtml(m.title) + '</strong><div class="muted">' + GezyLMS.escapeHtml(m.category_name || 'Tanpa kategori') + ' / ' + GezyLMS.escapeHtml(m.slug) + '</div></div><div class="row-actions"><span class="badge">' + GezyLMS.escapeHtml(m.status) + '</span><button class="btn btn-secondary btn-small" type="button" data-edit-material="' + m.id + '">Edit</button><button class="btn btn-danger btn-small" type="button" data-delete-material="' + m.id + '">Hapus</button></div></div>').join('') : '<div class="notice">Belum ada materi.</div>');
+          document.querySelectorAll('[data-edit-material]').forEach(btn => btn.addEventListener('click', () => editMaterial(Number(btn.dataset.editMaterial))));
+          document.querySelectorAll('[data-delete-material]').forEach(btn => btn.addEventListener('click', () => deleteMaterial(Number(btn.dataset.deleteMaterial))));
         } catch (err) {
           GezyLMS.showError('#admin-error', err);
         }
@@ -319,7 +361,22 @@ const app = new Elysia()
         });
       };
       bindJsonForm('category-form', '/api/admin/categories', d => ({ name: d.name, slug: d.slug, description: d.description }));
-      bindJsonForm('material-form', '/api/admin/materials', d => ({ category_id: Number(d.category_id), title: d.title, slug: d.slug, summary: d.summary, status: d.status }));
+      document.getElementById('material-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(e.target).entries());
+        const editing = !!data.id;
+        try {
+          await GezyLMS.api(editing ? '/api/admin/materials/' + data.id : '/api/admin/materials', {
+            method: editing ? 'PUT' : 'POST',
+            body: JSON.stringify(materialPayload(data))
+          });
+          resetMaterialForm();
+          await loadAdmin();
+        } catch (err) {
+          GezyLMS.showError('#admin-error', err);
+        }
+      });
+      document.getElementById('material-cancel').addEventListener('click', resetMaterialForm);
       bindJsonForm('section-form', '/api/admin/sections', d => ({ material_id: Number(d.material_id), title: d.title, slug: d.slug, content_markdown: d.content_markdown, status: d.status }));
       bindJsonForm('quiz-form', '/api/admin/quizzes', d => ({ material_id: d.material_id ? Number(d.material_id) : undefined, section_id: d.section_id ? Number(d.section_id) : undefined, title: d.title, description: d.description, answers_released_at: d.answers_released_at || undefined, status: d.status }));
       bindJsonForm('question-form', '/api/admin/questions', d => ({ quiz_id: Number(d.quiz_id), question_type: d.question_type, question_text: d.question_text, options: JSON.parse(d.options), correct_answer: JSON.parse(d.correct_answer), points: Number(d.points || 1), explanation: d.explanation }));
