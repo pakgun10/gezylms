@@ -467,4 +467,4 @@ curl -I https://lms.gezytech.web.id/admin
 Praktisnya, setiap prompt ke bot bisa ditutup dengan instruksi ini:
 
 ```text
-Setelah membuat materi/quiz, pastikan data bisa di-CRUD dari /admin. Jalankan validasi format database, bun run check, cek relasi material/section/quiz/question, dan restart PM2 hanya jika ada perubahan kode.
+Sangat penting: Setelah membuat materi/quiz, pastikan data bisa di-CRUD dari /admin. Jalankan validasi format database, bun run check, cek relasi material/section/quiz/question, dan restart PM2 hanya jika ada perubahan kode.

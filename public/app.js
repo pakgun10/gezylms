@@ -111,5 +111,12 @@ window.GezyLMS = (() => {
     if (window.MathJax?.typesetPromise) window.MathJax.typesetPromise();
   };
 
-  return { api, escapeHtml, renderMarkdown, showError, runMath };
+  const toggleNav = () => {
+    const navLinks = document.querySelector(".nav-links");
+    if (navLinks) {
+      navLinks.classList.toggle("active");
+    }
+  };
+
+  return { api, escapeHtml, renderMarkdown, showError, runMath, toggleNav };
 })();

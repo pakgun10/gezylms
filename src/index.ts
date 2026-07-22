@@ -12,11 +12,37 @@ const PORT = parseInt(process.env.PORT || "3001");
 const nav = (hasToken: boolean) => `
   <nav class="navbar">
     <div class="container">
-      <a href="/" class="brand">GezyLMS</a>
+      <div class="brand-wrapper">
+        <a href="/" class="brand">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="10" fill="url(#brand-grad)" />
+            <path d="M10 16L14 20L22 12" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs>
+              <linearGradient id="brand-grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#3B82F6"/>
+                <stop offset="0.5" stop-color="#8B5CF6"/>
+                <stop offset="1" stop-color="#EC4899"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          GezyLMS
+        </a>
+        <span class="brand-badge">PRO</span>
+      </div>
+      <button class="nav-toggle" onclick="GezyLMS.toggleNav()" aria-label="Toggle Navigation">
+        ☰
+      </button>
       <div class="nav-links">
         <a href="/materi">Materi</a>
         <a href="/quiz">Quiz</a>
-        ${hasToken ? '<a href="/history">Riwayat</a><a href="/admin">Admin</a><a href="/api/auth/logout">Logout</a>' : '<a href="/login">Login</a><a href="/register">Daftar</a>'}
+        ${hasToken ? `
+          <a href="/history">Riwayat</a>
+          <a href="/admin">Admin</a>
+          <a href="/api/auth/logout" class="nav-cta">Logout</a>
+        ` : `
+          <a href="/login">Login</a>
+          <a href="/register" class="nav-cta">Daftar</a>
+        `}
       </div>
     </div>
   </nav>`;
@@ -51,24 +77,38 @@ const app = new Elysia()
     return page(
       "Beranda",
       `<header class="hero">
-        <div class="container">
-          <p class="eyebrow">LMS ringan untuk belajar mandiri</p>
-          <h1>Materi, latihan, dan riwayat belajar dalam satu tempat.</h1>
-          <p>GezyLMS mendukung materi Markdown + LaTeX, quiz interaktif, dan progress siswa yang tersimpan.</p>
+        <div class="container animate-fade-in">
+          <p class="eyebrow">✨ Platform Pembelajaran Digital Terpadu</p>
+          <h1>Belajar Lebih Interaktif dengan <span class="gradient-text">GezyLMS</span></h1>
+          <p>Materi pembelajaran terstruktur dengan LaTeX, latihan quiz interaktif, dan pemantauan nilai real-time dalam satu platform modern.</p>
           <div class="hero-buttons">
-            <a href="/materi" class="btn btn-primary">Mulai Belajar</a>
-            ${hasToken ? '<a href="/quiz" class="btn btn-secondary">Kerjakan Quiz</a>' : '<a href="/register" class="btn btn-secondary">Daftar Gratis</a>'}
+            <a href="/materi" class="btn btn-primary">🚀 Mulai Belajar Sekarang</a>
+            ${hasToken ? '<a href="/quiz" class="btn btn-secondary">🎯 Kerjakan Quiz</a>' : '<a href="/register" class="btn btn-secondary">✨ Daftar Gratis</a>'}
           </div>
         </div>
       </header>
       <main class="container">
         <section class="features">
-          <div class="feature-card"><h3>Materi Bertahap</h3><p>Kategori, materi, submateri, dan konten belajar tersusun sederhana.</p></div>
-          <div class="feature-card"><h3>Quiz Interaktif</h3><p>Pilihan ganda, benar-salah, dan multi-response dengan skor otomatis.</p></div>
-          <div class="feature-card"><h3>Progress Tersimpan</h3><p>Siswa wajib login agar riwayat belajar dan nilai bisa dilihat kembali.</p></div>
+          <div class="feature-card">
+            <div class="feature-icon">📚</div>
+            <h3>Materi Bertahap</h3>
+            <p>Kategori, materi, submateri, dan konten belajar tersusun rapi dengan dukungan Markdown & sintaks matematis LaTeX.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <h3>Quiz Interaktif</h3>
+            <p>Pilihan ganda, benar-salah, dan multi-response dengan pengolahan skor otomatis secara instan.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>Progress Real-Time</h3>
+            <p>Riwayat materi yang selesai dan hasil evaluasi quiz tersimpan dengan aman pada profil siswa.</p>
+          </div>
         </section>
       </main>
-      <footer><div class="container">GezyLMS - powered by Bun + Elysia</div></footer>`,
+      <footer>
+        <div class="container">GezyLMS &copy; 2026 &bull; Powered by Bun + Elysia</div>
+      </footer>`,
       hasToken
     );
   })
