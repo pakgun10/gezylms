@@ -8,6 +8,7 @@ import { quizRoutes } from "./routes/quizzes";
 import { adminRoutes } from "./routes/admin";
 
 const PORT = parseInt(process.env.PORT || "3001");
+const ASSET_VERSION = "20260723-0735";
 
 const nav = (hasToken: boolean) => `
   <nav class="navbar">
@@ -54,7 +55,7 @@ const page = (title: string, body: string, hasToken = false, math = false) => `<
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title} - GezyLMS</title>
   <link rel="stylesheet" href="/style.css">
-  <script src="/app.js"></script>
+  <script src="/app.js?v=${ASSET_VERSION}"></script>
   ${math ? '<script>window.MathJax={tex:{inlineMath:[[\'\\\\(\',\'\\\\)\']],displayMath:[[\'\\\\[\',\'\\\\]\']]}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>' : ""}
 </head>
 <body>

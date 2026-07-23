@@ -430,9 +430,11 @@ Materi "Persamaan Kuadrat" sudah dibuat dengan 3 submateri dan status published.
 Quiz "Latihan Persamaan Kuadrat" sudah dibuat dengan 10 soal, status draft, terhubung ke submateri "Rumus ABC". Validasi indeks jawaban dan format JSON sudah dicek.
 ```
 
-Bot ke depan wajib mengikuti `PANDUAN_UNTUK_BOT.md`, terutama bagian validasi teknis setelah input. Intinya, setelah membuat materi/quiz baru, bot tidak boleh berhenti hanya setelah insert data. Bot harus langsung mengecek bahwa data yang dibuat kompatibel dengan admin CRUD.
+## 16. Wajib Setelah Membuat Materi atau Quiz
 
-Yang harus dilakukan bot setiap selesai membuat konten:
+Bot tidak boleh berhenti hanya setelah insert data. Bot harus langsung mengecek bahwa data yang dibuat kompatibel dengan tampilan siswa dan admin CRUD.
+
+Yang wajib dilakukan bot setiap selesai membuat konten:
 
 1. Pastikan format data benar:
 `slug` valid, `status` benar, `sort_order` terisi, `options` berupa JSON array, dan `correct_answer` berupa array indeks seperti `[0]`, bukan teks.
@@ -464,7 +466,121 @@ pm2 restart gezylms --update-env
 curl -I https://lms.gezytech.web.id/admin
 ```
 
+7. Cek halaman materi dan quiz:
+```bash
+curl -I https://lms.gezytech.web.id/materi
+curl -I https://lms.gezytech.web.id/quiz
+curl -sS https://lms.gezytech.web.id/api/materials/categories | head -c 1000
+```
+
+Catatan penting:
+
+- `/materi` dan `/api/materials/categories` harus bisa dicek tanpa login.
+- `/quiz` menampilkan daftar quiz melalui endpoint `/api/quizzes/` yang membutuhkan login. Jika belum login, respons `401 Authentication required` adalah normal.
+- Untuk cek daftar quiz via API, login dulu sebagai admin atau user yang valid, lalu pakai cookie hasil login.
+
+Contoh cek quiz dengan cookie admin:
+
+```bash
+tmp=$(mktemp)
+curl -sS -c "$tmp" -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin"}' \
+  http://127.0.0.1:3001/api/auth/login >/dev/null
+curl -sS -b "$tmp" http://127.0.0.1:3001/api/quizzes/
+rm -f "$tmp"
+```
+
 Praktisnya, setiap prompt ke bot bisa ditutup dengan instruksi ini:
 
 ```text
 Sangat penting: Setelah membuat materi/quiz, pastikan data bisa di-CRUD dari /admin. Jalankan validasi format database, bun run check, cek relasi material/section/quiz/question, dan restart PM2 hanya jika ada perubahan kode.
+```
+
+## 17. Aturan Deploy, PM2, dan Cache UI
+
+Kasus penting yang pernah terjadi: `/materi` dan `/quiz` tidak tampil karena server masih menjalankan proses lama di port `3001` dan browser/Cloudflare memakai `/app.js` lama. Bot wajib mencegah kasus ini saat mengubah UI, JavaScript, CSS, atau route.
+
+Aturan proses aplikasi:
+
+- Aplikasi GezyLMS harus berjalan lewat PM2 dengan nama `gezylms`.
+- Jangan menjalankan aplikasi production dengan `nohup`, `bun run src/index.ts`, atau proses manual lain yang dibiarkan hidup.
+- Jangan membuat dua proses yang sama-sama mencoba memakai port `3001`.
+- Setelah mengubah kode aplikasi, selalu restart PM2:
+
+```bash
+pm2 restart gezylms --update-env
+```
+
+Jika `pm2 restart gezylms` gagal karena proses tidak ditemukan:
+
+```bash
+ss -tlnp | grep 3001 || true
+pgrep -af "bun|src/index.ts|gezylms"
+```
+
+Jika port `3001` dipegang proses manual lama, hentikan proses itu lalu start ulang lewat PM2:
+
+```bash
+kill <PID_LAMA>
+cd /home/pgun/gezylms
+pm2 start /home/pgun/.bun/bin/bun --name gezylms -- src/index.ts
+pm2 save
+```
+
+Verifikasi proses benar:
+
+```bash
+pm2 list | grep gezylms
+ss -tlnp | grep 3001
+curl -sS http://127.0.0.1:3001/materi | grep app.js
+```
+
+Aturan cache asset:
+
+- `public/app.js` disajikan dengan cache panjang dan bisa tersimpan di Cloudflare/browser.
+- Jika bot mengubah `public/app.js`, perilaku frontend, navbar, admin UI, renderer materi, atau script halaman, bot wajib menaikkan `ASSET_VERSION` di `src/index.ts`.
+- Pastikan tag script di HTML memakai query version:
+
+```html
+<script src="/app.js?v=${ASSET_VERSION}"></script>
+```
+
+- Setelah menaikkan `ASSET_VERSION`, jalankan `bun run check`, restart PM2, lalu cek halaman publik.
+
+Contoh validasi cache-bust:
+
+```bash
+curl -sS https://lms.gezytech.web.id/materi | grep app.js
+curl -sSI "https://lms.gezytech.web.id/app.js?v=<ASSET_VERSION>" | head -20
+```
+
+Yang diharapkan:
+
+- HTML publik menampilkan `/app.js?v=<ASSET_VERSION>` terbaru.
+- Header Cloudflare untuk URL versi baru sebaiknya `cf-cache-status: MISS` pada request pertama, bukan hanya memakai `/app.js` lama.
+- `/api/materials/categories` mengembalikan materi `published`.
+- Quiz tampil setelah user login.
+
+Jika UI masih kosong:
+
+1. Bandingkan lokal dan publik:
+```bash
+curl -sS http://127.0.0.1:3001/materi | grep app.js
+curl -sS https://lms.gezytech.web.id/materi | grep app.js
+```
+
+2. Cek data published:
+```bash
+sqlite3 gezylms.db "SELECT id,title,slug,status FROM materials ORDER BY sort_order;"
+sqlite3 gezylms.db "SELECT id,title,status FROM quizzes ORDER BY id;"
+```
+
+3. Cek API:
+```bash
+curl -sS http://127.0.0.1:3001/api/materials/categories | head -c 1000
+curl -sS https://lms.gezytech.web.id/api/materials/categories | head -c 1000
+```
+
+4. Jika lokal benar tetapi publik salah, cek nginx/Cloudflare/cache.
+
+5. Jika lokal juga salah, cek proses PM2, log aplikasi, atau data database.
